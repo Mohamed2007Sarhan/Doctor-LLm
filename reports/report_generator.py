@@ -42,8 +42,8 @@ def generate_full_report(session: DiagnosticSession, monitor_status: Optional[di
     repair_attempts = session.repair_attempts
     
     # Validate we have real data
-    if not qa_pairs:
-        raise ValueError("No diagnostic Q&A pairs found in session. Please complete the diagnostic interview first.")
+    if not qa_pairs and not session.automated_checks and not session.identified_issues:
+        raise ValueError("No diagnostic data found in session. Please complete the diagnostic process first.")
     
     if not diagnosis:
         raise ValueError("No diagnosis found in session. Please complete the diagnostic analysis first.")
@@ -52,7 +52,12 @@ def generate_full_report(session: DiagnosticSession, monitor_status: Optional[di
     diagnosis = _ensure_diagnosis_complete(diagnosis)
     
     # Get LLM to write the narrative sections
-    qa_text = "\n".join([f"Q: {qa['question']}\nA: {qa['answer']}" for qa in qa_pairs])
+    if qa_pairs:
+        diag_evidence = "Questions Asked and Answered:\n" + "\n".join([f"Q: {qa['question']}\nA: {qa['answer']}" for qa in qa_pairs])
+    elif session.automated_checks:
+        diag_evidence = "Automated Diagnostic Checks:\n" + "\n".join([f"[{k}] {str(v)[:300]}..." for k, v in session.automated_checks.items()])
+    else:
+        diag_evidence = "No raw diagnostic evidence recorded."
     
     messages = [
         {
@@ -64,15 +69,15 @@ ACTUAL Problem Reported: {session.problem_description}
 ACTUAL Model: {session.model_path}
 ACTUAL Diagnostic Data: {json.dumps(diagnosis, indent=2)}
 
-Questions Asked and Answered:
-{qa_text}
+Diagnostic Evidence:
+{diag_evidence}
 
 ACTUAL Repair attempts: {len(repair_attempts)} actions taken
 {f'Repairs: {json.dumps([{"tool": r.get("tool"), "success": r.get("success"), "summary": r.get("output", "")[0:100]} for r in repair_attempts if r.get("type") != "completion"], indent=2)}' if repair_attempts else 'No repairs attempted'}
 
 Write 3 sections using ONLY the actual data provided above. Do NOT add examples or generic content:
 1. EXECUTIVE_SUMMARY (2-3 sentences, summarizing the actual problem and diagnosis)
-2. TECHNICAL_ANALYSIS (3-4 paragraphs, analyzing the actual Q&A responses and findings)
+2. TECHNICAL_ANALYSIS (3-4 paragraphs, analyzing the diagnostic findings and evidence)
 3. RECOMMENDATIONS (3-5 bullet points, based on actual identified issues)
 
 Format as:
@@ -678,7 +683,7 @@ text here"""
         🔧 {fixed_count} Fixes Applied
       </span>
       <span class="status-badge" style="background:rgba(68,136,255,0.15);color:#4488ff;border-color:#4488ff">
-        📊 {len(qa_pairs)} Questions Asked
+        📊 {len(qa_pairs) if qa_pairs else len(session.automated_checks)} { "Questions Asked" if qa_pairs else "Checks Run" }
       </span>
       <div class="confidence-meter">
         <div class="confidence-label">
@@ -692,7 +697,7 @@ text here"""
 
   <!-- Stats Bar -->
   <div class="stats-bar">
-    <div class="stat-block"><span class="num">{len(qa_pairs)}</span><span class="lbl">Questions</span></div>
+    <div class="stat-block"><span class="num">{len(qa_pairs) if qa_pairs else len(session.automated_checks)}</span><span class="lbl">{"Questions" if qa_pairs else "Checks"}</span></div>
     <div class="stat-block"><span class="num">{len(diagnosis.get('affected_components', []))}</span><span class="lbl">Components</span></div>
     <div class="stat-block"><span class="num">{len(diagnosis.get('root_causes', []))}</span><span class="lbl">Root Causes</span></div>
     <div class="stat-block"><span class="num">{len(repair_attempts)}</span><span class="lbl">Repair Steps</span></div>
@@ -704,7 +709,7 @@ text here"""
   <section class="report-section">
     <h2>📋 Executive Summary</h2>
     <div class="executive-text">
-      {sections.get('EXECUTIVE_SUMMARY') or f"Session analyzed {len(qa_pairs)} questions. Primary issue: {diagnosis.get('primary_issue', 'See analysis below for details')}."}
+      {sections.get('EXECUTIVE_SUMMARY') or f"Session analyzed {len(qa_pairs) if qa_pairs else len(session.automated_checks)} data points. Primary issue: {diagnosis.get('primary_issue', 'See analysis below for details')}."}
     </div>
   </section>
 
@@ -731,10 +736,10 @@ text here"""
     <div class="tech-analysis">{sections.get('TECHNICAL_ANALYSIS') or diagnosis.get('summary') or 'Technical analysis based on diagnostic interview and findings'}</div>
   </section>
 
-  <!-- Diagnostic Q&A -->
+  <!-- Diagnostic Evidence -->
   <section class="report-section">
-    <h2>💬 Diagnostic Interview</h2>
-    <div>{qa_html if qa_html else '<p style="color:var(--text-dim)">No Q&A recorded</p>'}</div>
+    <h2>💬 Diagnostic Evidence</h2>
+    <div>{qa_html if qa_html else ('<div class="qa-item"><div class="qa-question">Automated Checks</div><div class="qa-answer">' + "<br>".join([f"<strong>{k}:</strong> {str(v)[:200]}..." for k, v in session.automated_checks.items()]) + '</div></div>' if session.automated_checks else '<p style="color:var(--text-dim)">No diagnostic evidence recorded</p>')}</div>
   </section>
 
   <!-- Repair Log -->
