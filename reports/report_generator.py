@@ -141,7 +141,7 @@ text here"""
                 <span class="repair-status">{status_icon}</span>
                 <span class="repair-time">{attempt.get('duration', 0):.2f}s</span>
             </div>
-            <div class="repair-output">{attempt.get('output', attempt.get('error', 'No output'))[:400]}</div>
+            <div class="repair-output">{attempt.get('output', attempt.get('error', 'No output'))}</div>
         </div>"""
     
     # Q&A section
@@ -558,7 +558,7 @@ text here"""
     background: rgba(0,0,0,0.3);
     padding: 10px;
     border-radius: 6px;
-    max-height: 120px;
+    max-height: 400px;
     overflow-y: auto;
   }}
   
