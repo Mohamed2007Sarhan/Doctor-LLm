@@ -8,7 +8,7 @@ import time
 from typing import Generator, Optional
 
 
-NVIDIA_API_KEY = "your-nvidia-api-key-here"
+NVIDIA_API_KEY = "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"
 BEST_MODEL = "nvidia/llama-3.3-nemotron-super-49b-v1"  # Best reasoning model on NVIDIA API
 
 client = OpenAI(
